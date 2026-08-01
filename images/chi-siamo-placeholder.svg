@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 600">
+  <defs>
+    <linearGradient id="bgv" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1d1d21"/>
+      <stop offset="55%" stop-color="#131315"/>
+      <stop offset="100%" stop-color="#08080a"/>
+    </linearGradient>
+    <radialGradient id="glowv" cx="50%" cy="28%" r="55%">
+      <stop offset="0%" stop-color="#c9a35c" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#c9a35c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="goldStroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ecd6a4"/>
+      <stop offset="100%" stop-color="#9c7c3f"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="600" fill="url(#bgv)"/>
+  <rect width="480" height="600" fill="url(#glowv)"/>
+
+  <!-- silhouette stilizzata di un barbiere al lavoro -->
+  <g opacity="0.9" transform="translate(90,150)">
+    <!-- cliente seduto -->
+    <circle cx="150" cy="60" r="34" fill="#2a2a2f" stroke="url(#goldStroke)" stroke-width="1.5"/>
+    <path d="M100 230 Q100 140 150 130 Q200 140 200 230 Z" fill="#232327" stroke="url(#goldStroke)" stroke-width="1.5"/>
+
+    <!-- barbiere in piedi -->
+    <circle cx="35" cy="20" r="28" fill="#2a2a2f" stroke="url(#goldStroke)" stroke-width="1.5"/>
+    <path d="M-10 220 Q-14 100 35 88 Q84 100 80 220 Z" fill="#232327" stroke="url(#goldStroke)" stroke-width="1.5"/>
+
+    <!-- braccio con forbici -->
+    <path d="M70 110 Q110 100 128 78" stroke="url(#goldStroke)" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <g transform="translate(120,66) rotate(35)">
+      <path d="M0 0 L18 -4 M0 0 L18 4 M0 0 L-4 0" stroke="#ecd6a4" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="-4" cy="-3" r="3" fill="none" stroke="#ecd6a4" stroke-width="1.5"/>
+      <circle cx="-4" cy="3" r="3" fill="none" stroke="#ecd6a4" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <!-- linea dorata decorativa -->
+  <line x1="90" y1="470" x2="390" y2="470" stroke="url(#goldStroke)" stroke-width="1" opacity="0.5"/>
+  <text x="240" y="520" font-family="Georgia, serif" font-size="26" fill="#ecd6a4" text-anchor="middle" letter-spacing="2">Barber LC</text>
+  <text x="240" y="546" font-family="Arial, sans-serif" font-size="12" fill="#a3a39c" text-anchor="middle" letter-spacing="3">SERVIZIO A DOMICILIO</text>
+
+  <rect x="1" y="1" width="478" height="598" fill="none" stroke="#c9a35c" stroke-opacity="0.25" stroke-width="1"/>
+</svg>
