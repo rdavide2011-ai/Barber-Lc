@@ -544,6 +544,44 @@
   .star-select input:checked ~ label, .star-select label:hover, .star-select label:hover ~ label { color: var(--color-gold); }
 
   /* ------------------------------------------------------------------------
+     11b. AUTOCOMPLETE (Comune / Via)
+     ------------------------------------------------------------------------ */
+  .autocomplete-group { position: relative; }
+  .autocomplete-input.is-loading { background-image: none; }
+  .autocomplete-input:disabled { opacity: 0.45; cursor: not-allowed; }
+  .autocomplete-suggestions {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+    background: var(--color-black-elevated); border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+    max-height: 260px; overflow-y: auto;
+    opacity: 0; transform: translateY(-6px); pointer-events: none;
+    transition: opacity 0.18s var(--ease-soft), transform 0.18s var(--ease-soft);
+  }
+  .autocomplete-suggestions.active { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .autocomplete-suggestion-item {
+    padding: 12px 16px; font-size: 0.9rem; color: var(--color-white); cursor: pointer;
+    transition: background 0.15s var(--ease-soft), color 0.15s var(--ease-soft);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .autocomplete-suggestion-item:last-child { border-bottom: none; }
+  .autocomplete-suggestion-item:hover, .autocomplete-suggestion-item.highlighted { background: rgba(201,163,92,0.12); color: var(--color-gold); }
+  .autocomplete-suggestion-item .sub { font-size: 0.76rem; color: var(--color-gray-dark); margin-top: 2px; }
+  .autocomplete-empty { padding: 14px 16px; font-size: 0.85rem; color: var(--color-gray-dark); }
+
+  /* ------------------------------------------------------------------------
+     11c. ADMIN — modifica indirizzo (comune/via con autocomplete)
+     ------------------------------------------------------------------------ */
+  .admin-address {
+    margin: 14px 0; padding: 16px; background: var(--color-black-soft);
+    border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  }
+  .admin-address__view { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+  .admin-address__view p { margin: 0; }
+  .admin-address__edit-btn { flex-shrink: 0; }
+  .admin-address-edit { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--color-border-strong); }
+  .admin-address-edit .form-row { margin-bottom: 0; }
+
+  /* ------------------------------------------------------------------------
      12. INSTAGRAM / GALLERIA
      ------------------------------------------------------------------------ */
   .instagram-cta { text-align: center; margin-bottom: 44px; }
@@ -686,7 +724,7 @@
   .booking-card__service { color: var(--color-white); font-weight: 600; margin-bottom: 4px; }
   .booking-card__meta { font-size: 0.85rem; margin-bottom: 4px; }
   .booking-card__note { font-size: 0.82rem; color: var(--color-gray-dark); font-style: italic; }
-  .booking-card__actions { display: flex; gap: 10px; margin-top: 14px; }
+  .booking-card__actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 
   .badge { display: inline-block; padding: 5px 14px; border-radius: var(--radius-pill); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
   .badge--pending { background: rgba(201, 163, 92, 0.15); color: var(--color-gold); }
@@ -805,6 +843,7 @@
     .service-card__meta { flex-wrap: wrap; row-gap: 8px; }
     .about-highlights { grid-template-columns: 1fr; }
     .ig-coming-soon { padding: 44px 22px; }
+    .admin-address__view { flex-direction: column; }
   }
 
 </style>
@@ -1209,18 +1248,26 @@
           <form id="form-prenota">
             <div class="booking-layout">
               <div>
-                <div class="form-group">
-                  <label for="prenota-comune">Comune</label>
-                  <select id="prenota-comune" required></select>
+                <div class="form-group autocomplete-group">
+                  <label for="prenota-comune-input">Comune</label>
+                  <input type="text" id="prenota-comune-input" class="autocomplete-input" placeholder="Inizia a scrivere il comune..." autocomplete="off" required />
+                  <input type="hidden" id="prenota-comune" />
+                  <div class="autocomplete-suggestions" id="comune-suggestions"></div>
                 </div>
                 <div class="form-group">
                   <label for="prenota-servizio">Servizio</label>
                   <select id="prenota-servizio" required></select>
                 </div>
-                <div class="form-group">
-                  <label for="prenota-indirizzo">Indirizzo</label>
-                  <input type="text" id="prenota-indirizzo" placeholder="Via, numero civico, citofono..." required />
+                <div class="form-group autocomplete-group">
+                  <label for="prenota-via-input">Via</label>
+                  <input type="text" id="prenota-via-input" class="autocomplete-input" placeholder="Seleziona prima il comune..." autocomplete="off" required disabled />
+                  <div class="autocomplete-suggestions" id="via-suggestions"></div>
                 </div>
+                <div class="form-group">
+                  <label for="prenota-civico">Numero civico / citofono</label>
+                  <input type="text" id="prenota-civico" placeholder="Es. 12, citofono Rossi" />
+                </div>
+                <input type="hidden" id="prenota-indirizzo" />
                 <div class="form-group">
                   <label for="prenota-note">Note (opzionale)</label>
                   <textarea id="prenota-note" rows="3" placeholder="Richieste particolari..."></textarea>
@@ -1551,9 +1598,31 @@
       return data;
     },
 
+    /* Annulla una prenotazione del cliente.
+       IMPORTANTE: usiamo .select() dopo l'update per sapere davvero quante
+       righe sono state modificate. Senza .select(), se la Row Level
+       Security di Supabase blocca l'operazione (o se l'id non esiste/non
+       appartiene all'utente), la risposta arriva comunque con error: null
+       e 0 righe aggiornate: il chiamante non se ne accorgerebbe e
+       mostrerebbe un falso messaggio di successo. Qui invece, se non viene
+       aggiornata nessuna riga, solleviamo esplicitamente un errore. */
     async annullaPrenotazione(id) {
-      const { error } = await supabaseClient.from("prenotazioni").update({ stato: STATO.ANNULLATA }).eq("id", id);
+      const { data, error } = await supabaseClient
+        .from("prenotazioni")
+        .update({ stato: STATO.ANNULLATA })
+        .eq("id", id)
+        .select();
+
+      console.log("[annullaPrenotazione] data:", data);
+      console.error("[annullaPrenotazione] error:", error);
+
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Impossibile annullare la prenotazione: nessuna riga aggiornata (controlla le policy RLS sulla tabella prenotazioni)."
+        );
+      }
+      return data[0];
     },
 
     /* ---------- RECENSIONI ---------- */
@@ -1619,6 +1688,17 @@
 
     async adminAggiornaStatoPrenotazione(id, stato) {
       const { data, error } = await supabaseClient.from("prenotazioni").update({ stato }).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    /* Aggiorna comune e indirizzo di una prenotazione, mantenendo invariato
+       lo stato attuale (in genere usata dall'admin per correggere eventuali
+       errori del cliente prima di confermare). Nessuna nuova tabella o
+       colonna: aggiorna solo "comune" e "indirizzo", gia' esistenti. */
+    async adminAggiornaIndirizzo(id, { comune, indirizzo }) {
+      const { data, error } = await supabaseClient
+        .from("prenotazioni").update({ comune, indirizzo }).eq("id", id).select().single();
       if (error) throw error;
       return data;
     },
@@ -2017,15 +2097,218 @@ function initRecensioneForm() {
 }
 
 /* --------------------------------------------------------------------------
-   PRENOTAZIONE — comune / servizio / calendario / orario
+   AUTOCOMPLETE — helper generico per campi Comune / Via
    -------------------------------------------------------------------------- */
-function populateComuniSelect() {
-  const select = $("#prenota-comune");
-  select.innerHTML =
-    `<option value="" disabled selected>Seleziona il tuo comune</option>` +
-    COMUNI_LECCO.map((c) => `<option value="${c}">${c}</option>`).join("");
+function createAutocomplete({ input, hidden, box, fetcher, minChars = 1, debounceMs = 250, onSelect, allowFreeText = false, emptyText = "Nessun risultato" }) {
+  let debounceTimer = null;
+  let abortController = null;
+  let items = [];
+  let highlightedIndex = -1;
+  let latestQuery = "";
+
+  function closeBox() {
+    box.classList.remove("active");
+    box.innerHTML = "";
+    highlightedIndex = -1;
+  }
+
+  function renderItems() {
+    if (!items.length) {
+      box.innerHTML = `<div class="autocomplete-empty">${escapeHTML(emptyText)}</div>`;
+      box.classList.add("active");
+      return;
+    }
+    box.innerHTML = items
+      .map(
+        (it, i) => `<div class="autocomplete-suggestion-item${i === highlightedIndex ? " highlighted" : ""}" data-index="${i}">
+          ${escapeHTML(it.label)}${it.sub ? `<div class="sub">${escapeHTML(it.sub)}</div>` : ""}
+        </div>`
+      )
+      .join("");
+    box.classList.add("active");
+    $$(".autocomplete-suggestion-item", box).forEach((el) => {
+      el.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        selectItem(items[Number(el.dataset.index)]);
+      });
+    });
+  }
+
+  function selectItem(item) {
+    input.value = item.label;
+    if (hidden) hidden.value = item.value ?? item.label;
+    closeBox();
+    if (onSelect) onSelect(item);
+  }
+
+  async function runSearch(query) {
+    latestQuery = query;
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+    try {
+      const result = await fetcher(query, abortController.signal);
+      if (latestQuery !== query) return; // risposta ormai obsoleta: ignorata
+      items = result || [];
+      highlightedIndex = -1;
+      renderItems();
+    } catch (err) {
+      if (err && err.name !== "AbortError") console.error(err);
+    }
+  }
+
+  input.addEventListener("input", () => {
+    if (hidden) hidden.value = "";
+    const query = input.value.trim();
+    if (query.length < minChars) { closeBox(); return; }
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => runSearch(query), debounceMs);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (!box.classList.contains("active")) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); highlightedIndex = Math.min(highlightedIndex + 1, items.length - 1); renderItems(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); highlightedIndex = Math.max(highlightedIndex - 1, 0); renderItems(); }
+    else if (e.key === "Enter") { if (highlightedIndex >= 0) { e.preventDefault(); selectItem(items[highlightedIndex]); } }
+    else if (e.key === "Escape") { closeBox(); }
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      closeBox();
+      /* Se il campo non ammette testo libero (es. Comune) e non è stata
+         fatta una selezione valida dall'elenco, il valore digitato viene
+         svuotato per evitare di salvare un comune inesistente. */
+      if (!allowFreeText && hidden && !hidden.value && input.value.trim() !== "") {
+        input.value = "";
+      }
+    }, 120);
+  });
+
+  input.addEventListener("focus", () => {
+    if (input.value.trim().length >= minChars && items.length) renderItems();
+  });
+
+  return {
+    reset() {
+      input.value = "";
+      if (hidden) hidden.value = "";
+      closeBox();
+    },
+    setValue(label, value) {
+      input.value = label;
+      if (hidden) hidden.value = value !== undefined ? value : label;
+      closeBox();
+    },
+  };
 }
 
+/* Comune: ricerca istantanea (client-side) sull'elenco dei comuni serviti
+   dall'attività (provincia di Lecco), cosi' da evitare di far selezionare
+   al cliente un comune fuori dalla nostra area di servizio. */
+function fetchComuniSuggestions(query) {
+  const q = query.toLowerCase();
+  const starts = [];
+  const contains = [];
+  COMUNI_LECCO.forEach((c) => {
+    const cl = c.toLowerCase();
+    if (cl.startsWith(q)) starts.push(c);
+    else if (cl.includes(q)) contains.push(c);
+  });
+  return Promise.resolve([...starts, ...contains].slice(0, 8).map((c) => ({ label: c, value: c })));
+}
+
+/* Via: ricerca in tempo reale tramite il servizio pubblico di geocoding
+   Nominatim (OpenStreetMap), filtrata sul comune passato. Nessuna chiave
+   API richiesta. Se il servizio non trova nulla (es. via molto recente o
+   comune piccolo non ben mappato) il cliente/admin può comunque scrivere
+   liberamente il nome della via.
+
+   Fabbrica di fetcher: restituisce una funzione compatibile con
+   createAutocomplete({ fetcher }) che legge il comune di riferimento in
+   modo dinamico tramite getComune() — cosi' lo stesso codice puo' essere
+   riusato sia per il form Cliente (un solo comune in pagina) sia per il
+   pannello Admin (piu' prenotazioni, quindi piu' comuni, sulla stessa
+   vista). */
+function makeViaFetcher(getComune) {
+  return async function fetchViaSuggestions(query, signal) {
+    const comune = getComune();
+    if (!comune) return [];
+    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=it&limit=8&accept-language=it&street=${encodeURIComponent(query)}&city=${encodeURIComponent(comune)}`;
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error("Errore nella ricerca delle vie");
+    const data = await res.json();
+    const seen = new Set();
+    const results = [];
+    data.forEach((item) => {
+      const via = item.address && (item.address.road || item.address.pedestrian || item.address.footway || item.address.square);
+      if (via && !seen.has(via.toLowerCase())) {
+        seen.add(via.toLowerCase());
+        results.push({ label: via, value: via });
+      }
+    });
+    return results;
+  };
+}
+
+let comuneAutocomplete, viaAutocomplete;
+
+function updateIndirizzoHidden() {
+  const via = $("#prenota-via-input").value.trim();
+  const civico = $("#prenota-civico").value.trim();
+  $("#prenota-indirizzo").value = [via, civico].filter(Boolean).join(", ");
+}
+
+function initAutocompleteFields() {
+  comuneAutocomplete = createAutocomplete({
+    input: $("#prenota-comune-input"),
+    hidden: $("#prenota-comune"),
+    box: $("#comune-suggestions"),
+    fetcher: fetchComuniSuggestions,
+    minChars: 1,
+    debounceMs: 100,
+    emptyText: "Nessun comune trovato nella nostra area di servizio",
+    onSelect: () => {
+      viaAutocomplete.reset();
+      $("#prenota-via-input").disabled = false;
+      $("#prenota-via-input").placeholder = "Scrivi il nome della via...";
+      updateIndirizzoHidden();
+      updateRiepilogo();
+    },
+  });
+
+  viaAutocomplete = createAutocomplete({
+    input: $("#prenota-via-input"),
+    box: $("#via-suggestions"),
+    fetcher: makeViaFetcher(() => $("#prenota-comune").value),
+    minChars: 2,
+    debounceMs: 350,
+    allowFreeText: true,
+    emptyText: "Nessuna via trovata: puoi comunque scriverla",
+    onSelect: () => {
+      updateIndirizzoHidden();
+      updateRiepilogo();
+    },
+  });
+
+  $("#prenota-via-input").addEventListener("input", () => { updateIndirizzoHidden(); updateRiepilogo(); });
+  $("#prenota-civico").addEventListener("input", () => { updateIndirizzoHidden(); updateRiepilogo(); });
+
+  /* Se l'utente svuota il campo Comune, il campo Via torna bloccato: non
+     avrebbe senso cercare vie senza sapere in quale comune. */
+  $("#prenota-comune-input").addEventListener("input", () => {
+    if (!$("#prenota-comune-input").value.trim()) {
+      viaAutocomplete.reset();
+      $("#prenota-via-input").disabled = true;
+      $("#prenota-via-input").placeholder = "Seleziona prima il comune...";
+      updateIndirizzoHidden();
+      updateRiepilogo();
+    }
+  });
+}
+
+/* --------------------------------------------------------------------------
+   PRENOTAZIONE — comune / servizio / calendario / orario
+   -------------------------------------------------------------------------- */
 function populateServiziSelect() {
   const select = $("#prenota-servizio");
   if (!state.servizi.length) {
@@ -2048,7 +2331,6 @@ function initPrenotaView() {
   $("#prenota-locked").classList.add("hidden");
   $("#prenota-form-wrapper").classList.remove("hidden");
 
-  populateComuniSelect();
   populateServiziSelect();
   renderCalendar();
 
@@ -2057,8 +2339,12 @@ function initPrenotaView() {
   }
 
   if (!state.editingPrenotazioneId) {
-    $("#prenota-comune").value = "";
+    comuneAutocomplete.reset();
     $("#prenota-servizio").value = state.servizioPreselezionato || "";
+    viaAutocomplete.reset();
+    $("#prenota-via-input").disabled = true;
+    $("#prenota-via-input").placeholder = "Seleziona prima il comune...";
+    $("#prenota-civico").value = "";
     $("#prenota-indirizzo").value = "";
     state.selectedDate = null;
     state.selectedTime = null;
@@ -2193,9 +2479,7 @@ function updateRiepilogo() {
 }
 
 function initPrenotaForm() {
-  $("#prenota-comune").addEventListener("change", updateRiepilogo);
   $("#prenota-servizio").addEventListener("change", updateRiepilogo);
-  $("#prenota-indirizzo").addEventListener("input", updateRiepilogo);
 
   $("#form-prenota").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -2205,7 +2489,11 @@ function initPrenotaForm() {
     const servizio = state.servizi.find((s) => String(s.id) === String(servizioId));
     const note = $("#prenota-note").value.trim();
 
-    if (!comune || !servizio || !indirizzo || !state.selectedDate || !state.selectedTime) {
+    if (!comune) {
+      toast("Seleziona un comune valido dall'elenco suggerito.", "error");
+      return;
+    }
+    if (!servizio || !indirizzo || !state.selectedDate || !state.selectedTime) {
       toast("Completa tutti i campi prima di confermare.", "error");
       return;
     }
@@ -2243,6 +2531,12 @@ function resetPrenotaForm() {
   state.selectedTime = null;
   state.editingPrenotazioneId = null;
   $("#form-prenota").reset();
+  comuneAutocomplete.reset();
+  viaAutocomplete.reset();
+  $("#prenota-via-input").disabled = true;
+  $("#prenota-via-input").placeholder = "Seleziona prima il comune...";
+  $("#prenota-civico").value = "";
+  $("#prenota-indirizzo").value = "";
   $("#prenota-riepilogo").classList.add("hidden");
   renderCalendar();
   $("#time-slots").innerHTML = "";
@@ -2433,15 +2727,24 @@ function attachPrenotazioneClienteEvents(list, prenotazioni) {
     const id = card.dataset.id;
     const prenotazione = prenotazioni.find((p) => String(p.id) === id);
 
+    /* Pulsante "Annulla": chiede conferma, esegue davvero l'UPDATE su
+       Supabase tramite BarberAPI.annullaPrenotazione (che ora usa
+       .select() e solleva un errore reale se nessuna riga viene
+       aggiornata), mostra il messaggio di successo SOLO se l'operazione
+       è realmente andata a buon fine, e in caso di errore mostra il
+       messaggio effettivo restituito da Supabase invece di un generico
+       messaggio di successo. Infine ricarica l'Area Cliente senza dover
+       aggiornare la pagina. */
     card.querySelector("[data-action='annulla']")?.addEventListener("click", async () => {
-      if (!confirm("Confermi di voler annullare questa prenotazione?")) return;
+      if (!confirm("Sei sicuro di voler annullare questa prenotazione?")) return;
       try {
-        await BarberAPI.annullaPrenotazione(id);
+        const risultato = await BarberAPI.annullaPrenotazione(id);
+        console.log("[annulla] prenotazione annullata con successo:", risultato);
         toast("Prenotazione annullata.");
-        loadAreaCliente();
+        await loadAreaCliente(); // ricarica subito la lista, nessun reload della pagina
       } catch (err) {
-        toast("Errore durante l'annullamento.", "error");
-        console.error(err);
+        console.error("[annulla] errore reale ricevuto da Supabase:", err);
+        toast(err?.message || "Errore durante l'annullamento.", "error");
       }
     });
 
@@ -2449,10 +2752,17 @@ function attachPrenotazioneClienteEvents(list, prenotazioni) {
       state.editingPrenotazioneId = id;
       navigateTo("prenota");
       setTimeout(() => {
-        $("#prenota-comune").value = prenotazione.comune;
+        comuneAutocomplete.setValue(prenotazione.comune, prenotazione.comune);
+        $("#prenota-via-input").disabled = false;
+        $("#prenota-via-input").placeholder = "Scrivi il nome della via...";
+        /* L'indirizzo salvato in precedenza era un unico campo libero:
+           lo mostriamo cosi' com'era nel campo Via (l'utente può
+           correggerlo o ri-selezionarlo dai suggerimenti) e lasciamo
+           vuoto il civico, che verrà eventualmente re-inserito. */
+        viaAutocomplete.setValue(prenotazione.indirizzo || "", "");
+        $("#prenota-civico").value = "";
         $("#prenota-servizio").value = prenotazione.servizio_id;
         $("#prenota-indirizzo").value = prenotazione.indirizzo || "";
-        $("#prenota-note").value = prenotazione.note || "";
         state.selectedDate = prenotazione.data;
         const d = new Date(prenotazione.data + "T00:00:00");
         state.calendarMonth = d.getMonth();
@@ -2540,6 +2850,7 @@ async function loadAdminPrenotazioni() {
       card.querySelector("[data-action='conferma']")?.addEventListener("click", () => aggiornaStatoAdmin(id, "Confermata"));
       card.querySelector("[data-action='rifiuta']")?.addEventListener("click", () => aggiornaStatoAdmin(id, "Rifiutata"));
     });
+    attachAdminIndirizzoEvents(container, prenotazioni);
   } catch (err) {
     container.innerHTML = `<p class="muted">Errore nel caricamento.</p>`;
     console.error(err);
@@ -2559,15 +2870,146 @@ function renderPrenotazioneAdmin(p) {
         <span class="booking-card__price">${formatPrezzo(prezzo)}</span>
       </div>
       <p class="booking-card__service">${escapeHTML(nomeServizio)} — ${escapeHTML(cliente)}</p>
-      <p class="booking-card__meta">${formatDataIT(p.data)} · ${p.orario} · ${escapeHTML(p.comune)}</p>
-      <p class="booking-card__meta muted-small">${escapeHTML(p.indirizzo || "")}</p>
       <p class="booking-card__meta muted-small">${escapeHTML(contatti)}</p>
+      <p class="booking-card__meta">${formatDataIT(p.data)} · ${p.orario}</p>
+
+      <div class="admin-address">
+        <div class="admin-address__view">
+          <p><strong>${escapeHTML(p.comune || "—")}</strong><br />${escapeHTML(p.indirizzo || "—")}</p>
+          <button type="button" class="btn btn--ghost btn--small admin-address__edit-btn" data-action="modifica-indirizzo">Modifica indirizzo</button>
+        </div>
+        <div class="admin-address-edit hidden" id="admin-address-edit-${p.id}">
+          <div class="form-row">
+            <div class="form-group autocomplete-group">
+              <label for="admin-comune-input-${p.id}">Comune</label>
+              <input type="text" class="autocomplete-input" id="admin-comune-input-${p.id}" placeholder="Inizia a scrivere il comune..." autocomplete="off" />
+              <input type="hidden" id="admin-comune-${p.id}" />
+              <div class="autocomplete-suggestions" id="admin-comune-suggestions-${p.id}"></div>
+            </div>
+            <div class="form-group autocomplete-group">
+              <label for="admin-via-input-${p.id}">Via</label>
+              <input type="text" class="autocomplete-input" id="admin-via-input-${p.id}" placeholder="Scrivi il nome della via..." autocomplete="off" />
+              <div class="autocomplete-suggestions" id="admin-via-suggestions-${p.id}"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="admin-civico-${p.id}">Numero civico / citofono</label>
+            <input type="text" id="admin-civico-${p.id}" placeholder="Es. 12, citofono Rossi" />
+          </div>
+          <div class="booking-card__actions">
+            <button type="button" class="btn btn--gold btn--small" data-action="salva-indirizzo">Salva indirizzo</button>
+            <button type="button" class="btn btn--ghost btn--small" data-action="annulla-modifica-indirizzo">Annulla</button>
+          </div>
+        </div>
+      </div>
+
       ${p.note ? `<p class="booking-card__note">Note: ${escapeHTML(p.note)}</p>` : ""}
       ${p.stato === "In attesa" ? `<div class="booking-card__actions">
           <button type="button" class="btn btn--gold btn--small" data-action="conferma">Conferma</button>
           <button type="button" class="btn btn--ghost btn--small btn--danger" data-action="rifiuta">Rifiuta</button>
         </div>` : ""}
     </div>`;
+}
+
+/* Collega, per ogni prenotazione mostrata nel pannello Admin, il toggle e
+   la logica di salvataggio del blocco "Modifica indirizzo": stesso sistema
+   di autocomplete (Comune + Via) gia' usato lato Cliente, ma istanziato
+   dinamicamente per ogni card con ID univoci (una card per prenotazione),
+   cosi' piu' prenotazioni possono essere modificate in indipendenza sulla
+   stessa pagina. */
+function attachAdminIndirizzoEvents(container, prenotazioni) {
+  $$(".admin-booking-card", container).forEach((card) => {
+    const id = card.dataset.id;
+    const prenotazione = prenotazioni.find((p) => String(p.id) === id);
+    const editBtn = card.querySelector("[data-action='modifica-indirizzo']");
+    const editBox = $(`#admin-address-edit-${id}`, card);
+    const annullaBtn = card.querySelector("[data-action='annulla-modifica-indirizzo']");
+    const salvaBtn = card.querySelector("[data-action='salva-indirizzo']");
+    if (!editBtn || !editBox) return;
+
+    let adminComuneAc, adminViaAc;
+    let initialized = false;
+
+    function ensureAutocomplete() {
+      if (initialized) return;
+      initialized = true;
+
+      const comuneInput = $(`#admin-comune-input-${id}`, card);
+      const comuneHidden = $(`#admin-comune-${id}`, card);
+      const comuneBox = $(`#admin-comune-suggestions-${id}`, card);
+      const viaInput = $(`#admin-via-input-${id}`, card);
+      const viaBox = $(`#admin-via-suggestions-${id}`, card);
+
+      adminComuneAc = createAutocomplete({
+        input: comuneInput,
+        hidden: comuneHidden,
+        box: comuneBox,
+        fetcher: fetchComuniSuggestions,
+        minChars: 1,
+        debounceMs: 100,
+        emptyText: "Nessun comune trovato nella nostra area di servizio",
+        onSelect: () => adminViaAc.reset(),
+      });
+
+      adminViaAc = createAutocomplete({
+        input: viaInput,
+        box: viaBox,
+        fetcher: makeViaFetcher(() => comuneHidden.value || comuneInput.value),
+        minChars: 2,
+        debounceMs: 350,
+        allowFreeText: true,
+        emptyText: "Nessuna via trovata: puoi comunque scriverla",
+      });
+
+      /* Precompila con i dati attuali della prenotazione. L'indirizzo era
+         salvato come un unico campo libero "via, civico": lo separiamo
+         qui in modo euristico cosi' l'admin trova già valorizzati via e
+         civico e deve solo correggere quello che serve. */
+      adminComuneAc.setValue(prenotazione.comune || "", prenotazione.comune || "");
+      const parti = (prenotazione.indirizzo || "").split(",").map((s) => s.trim());
+      const viaPart = parti[0] || "";
+      const civicoPart = parti.slice(1).join(", ");
+      adminViaAc.setValue(viaPart, viaPart);
+      $(`#admin-civico-${id}`, card).value = civicoPart;
+    }
+
+    editBtn.addEventListener("click", () => {
+      ensureAutocomplete();
+      editBox.classList.toggle("hidden");
+    });
+
+    annullaBtn?.addEventListener("click", () => {
+      editBox.classList.add("hidden");
+    });
+
+    salvaBtn?.addEventListener("click", async () => {
+      const comune = $(`#admin-comune-${id}`, card).value.trim();
+      const via = $(`#admin-via-input-${id}`, card).value.trim();
+      const civico = $(`#admin-civico-${id}`, card).value.trim();
+
+      if (!comune) {
+        toast("Seleziona un comune valido dall'elenco suggerito.", "error");
+        return;
+      }
+      if (!via) {
+        toast("Inserisci la via.", "error");
+        return;
+      }
+      const indirizzo = [via, civico].filter(Boolean).join(", ");
+
+      setLoading(salvaBtn, true);
+      try {
+        await BarberAPI.adminAggiornaIndirizzo(id, { comune, indirizzo });
+        toast("Indirizzo aggiornato.");
+        loadAdminPrenotazioni();
+      } catch (err) {
+        toast("Errore nel salvataggio dell'indirizzo.", "error");
+        console.error(err);
+      } finally {
+        setLoading(salvaBtn, false);
+      }
+    });
+  });
 }
 
 async function aggiornaStatoAdmin(id, stato) {
@@ -2709,6 +3151,7 @@ async function init() {
   initFaqAccordion();
   initAuthForms();
   initRecensioneForm();
+  initAutocompleteFields();
   initPrenotaForm();
   initProfiloForm();
   initAdminTabs();
