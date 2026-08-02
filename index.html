@@ -711,6 +711,84 @@
   .riepilogo-box li { color: var(--color-white); font-size: 0.9rem; }
 
   /* ------------------------------------------------------------------------
+     14b. PRENOTAZIONE — Schermata "Richiesta inviata"
+     Riprende l'ispirazione grafica dell'immagine di riferimento (icona
+     circolare con spunta, titolo importante, testo esplicativo, pulsante
+     grande, nota finale) ma nella palette nero/oro del sito, con angoli
+     arrotondati coerenti col resto delle card e animazioni leggere in
+     apertura, in linea con .view--active/@keyframes viewIn già usati
+     altrove.
+     ------------------------------------------------------------------------ */
+  .success-box {
+    max-width: 520px; margin: 40px auto 0;
+    background: var(--color-black-card);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    padding: 56px 40px 48px;
+    text-align: center;
+    box-shadow: var(--shadow-card);
+    position: relative;
+    overflow: hidden;
+    animation: viewIn 0.7s var(--ease);
+  }
+  .success-box::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(201, 163, 92, 0.14), transparent 60%);
+    pointer-events: none;
+  }
+  .success-box__icon {
+    position: relative;
+    width: 92px; height: 92px; margin: 0 auto 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--color-gold);
+    background: rgba(201, 163, 92, 0.08);
+    animation: successPop 0.6s var(--ease) 0.1s both, successGlow 2.6s ease-in-out 0.7s infinite;
+  }
+  .success-box__icon svg { width: 40px; height: 40px; overflow: visible; }
+  .success-box__icon svg path {
+    fill: none; stroke: var(--color-gold); stroke-width: 2.4;
+    stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 40; stroke-dashoffset: 40;
+    animation: successDraw 0.55s var(--ease) 0.45s forwards;
+  }
+  @keyframes successPop {
+    from { opacity: 0; transform: scale(0.7); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes successDraw { to { stroke-dashoffset: 0; } }
+  @keyframes successGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(201,163,92,0.22); }
+    50% { box-shadow: 0 0 0 14px rgba(201,163,92,0); }
+  }
+  .success-box__title {
+    position: relative;
+    font-size: clamp(1.5rem, 3.4vw, 1.9rem);
+    color: var(--color-white);
+    margin-bottom: 18px;
+  }
+  .success-box__text {
+    position: relative;
+    font-size: 1rem;
+    max-width: 400px;
+    margin: 0 auto 34px;
+  }
+  .success-box__text strong { color: var(--color-white); }
+  .success-box .btn {
+    position: relative;
+    width: 100%;
+    padding: 17px 20px;
+    font-size: 0.98rem;
+  }
+  .success-box__note {
+    position: relative;
+    margin: 22px 0 0;
+    font-size: 0.82rem;
+    color: var(--color-gray-dark);
+  }
+
+  /* ------------------------------------------------------------------------
      15. AREA CLIENTE
      ------------------------------------------------------------------------ */
   .client-layout { display: grid; grid-template-columns: 320px 1fr; gap: 42px; align-items: start; }
@@ -786,6 +864,13 @@
   .toast--error { border-color: #c0554f; }
 
   /* ------------------------------------------------------------------------
+     18b. RECUPERO / RESET PASSWORD — messaggi di stato
+     ------------------------------------------------------------------------ */
+  .recupero-message { margin: -4px 0 18px; font-size: 0.85rem; line-height: 1.5; }
+  .recupero-message--error { color: #e08b85; }
+  .recupero-message--success { color: #7fce93; }
+
+  /* ------------------------------------------------------------------------
      19. RESPONSIVE
      ------------------------------------------------------------------------ */
   @media (max-width: 960px) {
@@ -844,6 +929,7 @@
     .about-highlights { grid-template-columns: 1fr; }
     .ig-coming-soon { padding: 44px 22px; }
     .admin-address__view { flex-direction: column; }
+    .success-box { padding: 44px 24px 38px; }
   }
 
 </style>
@@ -1221,6 +1307,7 @@
           <label for="recupero-email">Email</label>
           <input type="email" id="recupero-email" required />
         </div>
+        <p class="recupero-message hidden" id="recupero-message"></p>
         <button type="submit" class="btn btn--gold btn--block">Invia link di recupero</button>
       </form>
     </div>
@@ -1286,6 +1373,74 @@
               <button type="submit" class="btn btn--gold" id="btn-conferma-prenotazione">Conferma prenotazione</button>
             </div>
           </form>
+        </div>
+
+        <!-- Schermata "Richiesta di prenotazione inviata": mostrata solo in
+             caso di reale successo dell'operazione su Supabase (vedi
+             showPrenotaSuccesso() in JS). Rimane nascosta per default. -->
+        <div id="prenota-successo" class="hidden">
+          <div class="success-box">
+            <div class="success-box__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 12.5L10 17L19 7" /></svg>
+            </div>
+            <h2 class="success-box__title">Richiesta di prenotazione inviata!</h2>
+            <p class="success-box__text">
+              Grazie <strong id="successo-nome-cliente">Cliente</strong>,<br />
+              abbiamo ricevuto la tua richiesta di prenotazione.<br />
+              Ti contatteremo al più presto per confermare data, orario e luogo dell'appuntamento.
+            </p>
+            <button type="button" class="btn btn--gold" id="btn-vai-area-cliente">Vai all'Area Cliente</button>
+            <p class="success-box__note">Potrai controllare in qualsiasi momento lo stato della tua prenotazione dall'Area Cliente.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       RESET PASSWORD
+       Pagina raggiungibile SOLO tramite il link ricevuto via email (non è
+       presente nel menu di navigazione). Mostra tre stati: verifica del
+       link in corso, link non valido/scaduto, form per la nuova password.
+       ====================================================================== -->
+  <section class="view" id="view-reset-password">
+    <div class="section">
+      <div class="container">
+        <div class="auth-box" id="reset-password-box">
+          <img class="auth-box__logo" src="assets/logo.png" alt="Logo Barber LC" />
+          <h2 class="auth-box__title">Reimposta la tua password</h2>
+
+          <div id="reset-password-waiting">
+            <p class="muted" style="text-align:center;">Verifica del link in corso...</p>
+          </div>
+
+          <div id="reset-password-invalid" class="hidden">
+            <p class="muted" style="text-align:center;">Il link di recupero non è valido o è scaduto. Richiedi un nuovo link dalla pagina di accesso.</p>
+            <button type="button" class="btn btn--gold btn--block" data-view="login" style="margin-top:18px;">Vai al Login</button>
+          </div>
+
+          <form id="form-reset-password" class="hidden">
+            <p class="muted" style="margin-bottom:20px;">Inserisci la tua nuova password per completare il recupero dell'account.</p>
+            <div class="form-group">
+              <label for="reset-password-nuova">Nuova password</label>
+              <input type="password" id="reset-password-nuova" minlength="6" required />
+            </div>
+            <div class="form-group">
+              <label for="reset-password-conferma">Conferma nuova password</label>
+              <input type="password" id="reset-password-conferma" minlength="6" required />
+            </div>
+            <p class="recupero-message hidden" id="reset-password-message"></p>
+            <button type="submit" class="btn btn--gold btn--block">Imposta nuova password</button>
+          </form>
+
+          <div id="reset-password-success" class="hidden" style="text-align:center;">
+            <div class="success-box__icon" style="margin:0 auto 24px;" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 12.5L10 17L19 7" /></svg>
+            </div>
+            <h3 style="color:var(--color-white); margin-bottom:14px;">Password modificata con successo!</h3>
+            <p class="muted" style="margin-bottom:26px;">Da ora potrai accedere al tuo account utilizzando la nuova password.</p>
+            <button type="button" class="btn btn--gold btn--block" id="btn-reset-vai-login">Vai al Login</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1513,6 +1668,19 @@
       if (error) throw error;
     },
 
+    /* Richiede il recupero password passando dal controllo lato server
+       (Edge Function "reset-password-request"): solo se esiste realmente un
+       account con quell'email viene generata e inviata la mail di recupero.
+       Ritorna { exists: true|false }. Sostituisce il vecchio uso diretto di
+       resetPassword() dal form "Password dimenticata?". */
+    async requestPasswordReset(email) {
+      const { data, error } = await supabaseClient.functions.invoke("reset-password-request", {
+        body: { email },
+      });
+      if (error) throw error;
+      return data;
+    },
+
     async updatePassword(newPassword) {
       const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
       if (error) throw error;
@@ -1625,6 +1793,30 @@
       return data[0];
     },
 
+    /* Elimina definitivamente una prenotazione del cliente. La vera
+       protezione è affidata alla policy RLS "clienti_delete_prenotazioni"
+       (vedi schema.sql): il client qui si limita a chiedere la DELETE e a
+       verificare che sia stata effettivamente eliminata una riga tramite
+       .select(), per lo stesso motivo spiegato sopra per annullaPrenotazione. */
+    async eliminaPrenotazione(id) {
+      const { data, error } = await supabaseClient
+        .from("prenotazioni")
+        .delete()
+        .eq("id", id)
+        .select();
+
+      console.log("[eliminaPrenotazione] data:", data);
+      console.error("[eliminaPrenotazione] error:", error);
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Impossibile eliminare la prenotazione: nessuna riga eliminata (controlla le policy RLS sulla tabella prenotazioni)."
+        );
+      }
+      return data[0];
+    },
+
     /* ---------- RECENSIONI ---------- */
 
     async getRecensioniApprovate() {
@@ -1703,6 +1895,28 @@
       return data;
     },
 
+    /* Elimina definitivamente una prenotazione, senza alcuna limitazione:
+       la policy RLS "admin_delete_prenotazioni" (vedi schema.sql) consente
+       questa operazione solo all'account amministratore. */
+    async adminEliminaPrenotazione(id) {
+      const { data, error } = await supabaseClient
+        .from("prenotazioni")
+        .delete()
+        .eq("id", id)
+        .select();
+
+      console.log("[adminEliminaPrenotazione] data:", data);
+      console.error("[adminEliminaPrenotazione] error:", error);
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Impossibile eliminare la prenotazione: nessuna riga eliminata (controlla le policy RLS sulla tabella prenotazioni)."
+        );
+      }
+      return data[0];
+    },
+
     async adminGetTuttiClienti() {
       const { data, error } = await supabaseClient.from("profili").select("*").order("created_at", { ascending: false });
       if (error) throw error;
@@ -1757,12 +1971,13 @@
     },
   };
 
-  /* Le email transazionali (nuova prenotazione, conferma, rifiuto, modifica,
-     recupero password) richiedono una Supabase Edge Function collegata a un
-     provider come Resend o SendGrid, che legge i trigger sulla tabella
-     "prenotazioni" (vedi schema.sql) e invia le email lato server. Il
-     recupero password è invece già gestito da Supabase Auth
-     (BarberAPI.resetPassword). */
+  /* Le email transazionali (nuova prenotazione, conferma, rifiuto, modifica)
+     richiedono una Supabase Edge Function collegata a un provider come
+     Resend o SendGrid, che legge i trigger sulla tabella "prenotazioni"
+     (vedi schema.sql) e invia le email lato server. Il recupero password è
+     invece già gestito tramite la Edge Function "reset-password-request"
+     (verifica lato server + BarberAPI.requestPasswordReset) e da Supabase
+     Auth per l'aggiornamento vero e proprio (BarberAPI.updatePassword). */
 
   /* --------------------------------------------------------------------------
      Espone il livello dati al resto dell'applicazione (script "classico" più
@@ -1803,6 +2018,11 @@ const state = {
   calendarYear: new Date().getFullYear(),
   editingPrenotazioneId: null,
   servizioPreselezionato: null,
+  /* true quando l'utente sta seguendo un link di recupero password: usato
+     per mostrare la vista dedicata e per evitare che la sessione
+     temporanea generata da Supabase durante il recovery venga trattata
+     come un login normale (niente "Area cliente"/"Admin" nel menu). */
+  isRecoverySession: false,
 };
 
 /* --------------------------------------------------------------------------
@@ -1818,6 +2038,16 @@ function formatDataIT(isoDate) {
 
 function formatPrezzo(n) {
   return `€${Number(n).toFixed(0)}`;
+}
+
+/* Rileva se l'URL corrente contiene i parametri del link di recupero
+   password inviato da Supabase Auth (tipicamente nel fragment "#...&type=
+   recovery&..." aggiunto automaticamente al redirect). Usata sia
+   all'avvio dell'app sia come segnale indipendente dall'evento
+   PASSWORD_RECOVERY, per essere robusti anche in caso di timing diversi
+   tra il parsing interno di supabase-js e la registrazione dei listener. */
+function isRecoveryUrl() {
+  return /type=recovery/.test(location.hash) || /type=recovery/.test(location.search);
 }
 
 function toast(message, type = "success") {
@@ -1863,6 +2093,7 @@ function navigateTo(viewId, { updateHash = true } = {}) {
   if (viewId === "servizi") renderServizi();
   if (viewId === "recensioni") loadRecensioni();
   if (viewId === "prenota") initPrenotaView();
+  if (viewId === "reset-password") initResetPasswordView();
   if (viewId === "area-cliente") loadAreaCliente();
   if (viewId === "admin") loadAdminDashboard();
 
@@ -2322,7 +2553,24 @@ function populateServiziSelect() {
     state.servizi.map((s) => `<option value="${s.id}">${s.nome} — ${formatPrezzo(s.prezzo)}</option>`).join("");
 }
 
+/* Mostra la schermata "Richiesta di prenotazione inviata" al posto del
+   form, popolando dinamicamente il nome del cliente. Viene invocata SOLO
+   dopo un reale successo dell'operazione su Supabase (vedi
+   initPrenotaForm -> submit handler). */
+function showPrenotaSuccesso(nomeCliente) {
+  $("#successo-nome-cliente").textContent = nomeCliente || "Cliente";
+  $("#prenota-form-wrapper").classList.add("hidden");
+  $("#prenota-locked").classList.add("hidden");
+  $("#prenota-successo").classList.remove("hidden");
+}
+
+function hidePrenotaSuccesso() {
+  $("#prenota-successo").classList.add("hidden");
+}
+
 function initPrenotaView() {
+  hidePrenotaSuccesso();
+
   if (!state.session) {
     $("#prenota-locked").classList.remove("hidden");
     $("#prenota-form-wrapper").classList.add("hidden");
@@ -2501,28 +2749,42 @@ function initPrenotaForm() {
     const btn = $("#btn-conferma-prenotazione");
     setLoading(btn, true);
     try {
-      if (state.editingPrenotazioneId) {
+      const eraModifica = !!state.editingPrenotazioneId;
+      if (eraModifica) {
         await BarberAPI.modificaPrenotazione(state.editingPrenotazioneId, {
           comune, servizio_id: servizio.id,
           data: state.selectedDate, orario: state.selectedTime, indirizzo, note: note || null,
         });
         toast("Prenotazione modificata. In attesa di nuova conferma.");
         state.editingPrenotazioneId = null;
+        /* Una modifica riguarda una prenotazione già esistente: l'utente
+           la ritrova subito nell'Area Cliente, non serve la schermata di
+           "richiesta inviata" (pensata per una nuova prenotazione). */
+        resetPrenotaForm();
+        navigateTo("area-cliente");
       } else {
+        /* Solo se creaPrenotazione() va a buon fine (nessuna eccezione)
+           mostriamo la schermata di successo: se Supabase risponde con un
+           errore (rete, RLS, campi mancanti, ecc.) l'esecuzione salta
+           direttamente al blocco catch e la schermata NON compare. */
         await BarberAPI.creaPrenotazione({
           utenteId: state.session.user.id, comune, servizioId: servizio.id,
           data: state.selectedDate, orario: state.selectedTime, indirizzo, note,
         });
-        toast("Richiesta di prenotazione inviata! Ti avviseremo alla conferma.");
+        const nomeCliente = state.profilo?.nome || "Cliente";
+        resetPrenotaForm();
+        showPrenotaSuccesso(nomeCliente);
       }
-      resetPrenotaForm();
-      navigateTo("area-cliente");
     } catch (err) {
       toast("Errore durante la prenotazione. Riprova.", "error");
       console.error(err);
     } finally {
       setLoading(btn, false);
     }
+  });
+
+  $("#btn-vai-area-cliente").addEventListener("click", () => {
+    navigateTo("area-cliente");
   });
 }
 
@@ -2555,8 +2817,11 @@ function initAuthForms() {
     });
   });
 
+  /* "Password dimenticata?": apre la modale e resetta l'eventuale
+     messaggio (rosso/verde) rimasto da un tentativo precedente. */
   $("#link-recupero").addEventListener("click", (e) => {
     e.preventDefault();
+    $("#recupero-message").className = "recupero-message hidden";
     $("#auth-modal-recupero").classList.add("modal--open");
   });
   $("#chiudi-recupero").addEventListener("click", () => $("#auth-modal-recupero").classList.remove("modal--open"));
@@ -2604,18 +2869,33 @@ function initAuthForms() {
     }
   });
 
+  /* "Recupera password": passa dalla Edge Function "reset-password-request"
+     (verifica server-side dell'esistenza dell'account) invece del vecchio
+     BarberAPI.resetPassword diretto. Mostra il messaggio rosso o verde
+     richiesto, SENZA chiudere automaticamente la modale, cosi' l'utente
+     vede sempre l'esito prima di proseguire. */
   $("#form-recupero").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = $("#recupero-email").value.trim();
     const btn = e.target.querySelector("button[type=submit]");
+    const msgEl = $("#recupero-message");
+    msgEl.className = "recupero-message hidden";
     setLoading(btn, true);
     try {
-      await BarberAPI.resetPassword(email);
-      toast("Ti abbiamo inviato un'email per reimpostare la password.");
-      $("#auth-modal-recupero").classList.remove("modal--open");
-      e.target.reset();
+      const result = await BarberAPI.requestPasswordReset(email);
+      if (result?.exists) {
+        msgEl.textContent = "Ti abbiamo inviato un'email con le istruzioni per reimpostare la password.";
+        msgEl.classList.add("recupero-message--success");
+        e.target.reset();
+      } else {
+        msgEl.textContent = "Non esiste alcun account associato a questo indirizzo email.";
+        msgEl.classList.add("recupero-message--error");
+      }
+      msgEl.classList.remove("hidden");
     } catch (err) {
-      toast("Errore nell'invio dell'email di recupero.", "error");
+      msgEl.textContent = "Errore durante l'invio della richiesta. Riprova più tardi.";
+      msgEl.classList.remove("hidden");
+      msgEl.classList.add("recupero-message--error");
       console.error(err);
     } finally {
       setLoading(btn, false);
@@ -2626,6 +2906,83 @@ function initAuthForms() {
     await BarberAPI.signOut();
     toast("Disconnesso.");
     navigateTo("home");
+  });
+}
+
+/* --------------------------------------------------------------------------
+   RESET PASSWORD (pagina raggiungibile solo tramite link email)
+   -------------------------------------------------------------------------- */
+
+/* Decide quale dei tre stati mostrare nella vista "reset-password":
+   - "waiting": il link è stato riconosciuto ma la sessione temporanea di
+     recovery non è ancora stata confermata da Supabase (stato transitorio);
+   - "invalid": nessun link di recovery in corso e nessuna sessione valida
+     (link scaduto, già usato, o pagina aperta senza passare dall'email);
+   - form di reset: sessione di recovery attiva e pronta. */
+function initResetPasswordView() {
+  $("#reset-password-success").classList.add("hidden");
+
+  const ready = !!state.session && state.isRecoverySession;
+  const waiting = state.isRecoverySession && !state.session;
+
+  $("#reset-password-waiting").classList.toggle("hidden", !waiting);
+  $("#reset-password-invalid").classList.toggle("hidden", waiting || ready);
+  $("#form-reset-password").classList.toggle("hidden", !ready);
+
+  if (ready) {
+    $("#form-reset-password").reset();
+    $("#reset-password-message").className = "recupero-message hidden";
+  }
+}
+
+function initResetPasswordForm() {
+  $("#form-reset-password").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const nuova = $("#reset-password-nuova").value;
+    const conferma = $("#reset-password-conferma").value;
+    const msgEl = $("#reset-password-message");
+    msgEl.className = "recupero-message hidden";
+
+    if (nuova.length < 6) {
+      msgEl.textContent = "La password deve avere almeno 6 caratteri.";
+      msgEl.classList.remove("hidden");
+      msgEl.classList.add("recupero-message--error");
+      return;
+    }
+    if (nuova !== conferma) {
+      msgEl.textContent = "Le due password non coincidono.";
+      msgEl.classList.remove("hidden");
+      msgEl.classList.add("recupero-message--error");
+      return;
+    }
+
+    const btn = e.target.querySelector("button[type=submit]");
+    setLoading(btn, true);
+    try {
+      /* Unico punto che tocca davvero la password: usa la sessione di
+         recovery stabilita da Supabase Auth tramite il link email. Da
+         questo momento la vecchia password smette di funzionare. */
+      await BarberAPI.updatePassword(nuova);
+      state.isRecoverySession = false;
+      $("#form-reset-password").classList.add("hidden");
+      $("#reset-password-success").classList.remove("hidden");
+      toast("Password modificata con successo!");
+    } catch (err) {
+      msgEl.textContent = "Errore durante l'aggiornamento. Il link potrebbe essere scaduto: richiedine uno nuovo dalla pagina di accesso.";
+      msgEl.classList.remove("hidden");
+      msgEl.classList.add("recupero-message--error");
+      console.error(err);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
+  $("#btn-reset-vai-login").addEventListener("click", async () => {
+    /* Chiude la sessione temporanea di recovery prima di tornare al login,
+       cosi' l'utente dovrà autenticarsi con la password appena impostata. */
+    await BarberAPI.signOut();
+    state.isRecoverySession = false;
+    navigateTo("login");
   });
 }
 
@@ -2701,9 +3058,26 @@ const STATO_LABELS = {
   "Annullata": { label: "Annullata", cls: "badge--cancelled" },
 };
 
+/* Determina se il CLIENTE può eliminare definitivamente una prenotazione:
+   - sempre consentito per le prenotazioni "Rifiutata";
+   - consentito per le prenotazioni "Confermata" solo se la data
+     dell'appuntamento è già passata (appuntamento già svolto);
+   - mai consentito per "In attesa" o per "Confermata" con data futura. */
+function isPrenotazioneEliminabileCliente(p) {
+  if (p.stato === "Rifiutata") return true;
+  if (p.stato === "Confermata") {
+    const oggi = new Date();
+    oggi.setHours(0, 0, 0, 0);
+    const dataAppuntamento = new Date(p.data + "T00:00:00");
+    return dataAppuntamento < oggi;
+  }
+  return false;
+}
+
 function renderPrenotazioneCliente(p) {
   const stato = STATO_LABELS[p.stato] || STATO_LABELS["In attesa"];
   const modificabile = p.stato === "In attesa" || p.stato === "Confermata";
+  const eliminabile = isPrenotazioneEliminabileCliente(p);
   const nomeServizio = p.servizi?.nome || "Servizio";
   const prezzo = p.servizi?.prezzo ?? 0;
   return `
@@ -2715,9 +3089,10 @@ function renderPrenotazioneCliente(p) {
       <p class="booking-card__service">${escapeHTML(nomeServizio)}</p>
       <p class="booking-card__meta">${formatDataIT(p.data)} · ${p.orario} · ${escapeHTML(p.comune)}</p>
       <p class="booking-card__meta muted-small">${escapeHTML(p.indirizzo || "")}</p>
-      ${modificabile ? `<div class="booking-card__actions">
-          <button type="button" class="btn btn--ghost btn--small" data-action="modifica">Modifica</button>
-          <button type="button" class="btn btn--ghost btn--small btn--danger" data-action="annulla">Annulla</button>
+      ${modificabile || eliminabile ? `<div class="booking-card__actions">
+          ${modificabile ? `<button type="button" class="btn btn--ghost btn--small" data-action="modifica">Modifica</button>
+          <button type="button" class="btn btn--ghost btn--small btn--danger" data-action="annulla">Annulla</button>` : ""}
+          ${eliminabile ? `<button type="button" class="btn btn--ghost btn--small btn--danger" data-action="elimina">Elimina</button>` : ""}
         </div>` : ""}
     </div>`;
 }
@@ -2745,6 +3120,27 @@ function attachPrenotazioneClienteEvents(list, prenotazioni) {
       } catch (err) {
         console.error("[annulla] errore reale ricevuto da Supabase:", err);
         toast(err?.message || "Errore durante l'annullamento.", "error");
+      }
+    });
+
+    /* Pulsante "Elimina": disponibile solo per prenotazioni rifiutate o
+       confermate con data passata (vedi isPrenotazioneEliminabileCliente).
+       Chiede conferma, esegue la DELETE reale su Supabase tramite
+       BarberAPI.eliminaPrenotazione (protetta anche lato server dalla
+       policy RLS "clienti_delete_prenotazioni"), mostra il messaggio di
+       successo solo se l'operazione è realmente andata a buon fine e, in
+       caso di errore, mostra il messaggio effettivo restituito da
+       Supabase. Ricarica subito la lista senza reload della pagina. */
+    card.querySelector("[data-action='elimina']")?.addEventListener("click", async () => {
+      if (!confirm("Sei sicuro di voler eliminare questa prenotazione?")) return;
+      try {
+        const risultato = await BarberAPI.eliminaPrenotazione(id);
+        console.log("[elimina] prenotazione eliminata con successo:", risultato);
+        toast("Prenotazione eliminata.");
+        await loadAreaCliente();
+      } catch (err) {
+        console.error("[elimina] errore reale ricevuto da Supabase:", err);
+        toast(err?.message || "Errore durante l'eliminazione.", "error");
       }
     });
 
@@ -2849,6 +3245,25 @@ async function loadAdminPrenotazioni() {
       const id = card.dataset.id;
       card.querySelector("[data-action='conferma']")?.addEventListener("click", () => aggiornaStatoAdmin(id, "Confermata"));
       card.querySelector("[data-action='rifiuta']")?.addEventListener("click", () => aggiornaStatoAdmin(id, "Rifiutata"));
+      /* Pulsante "Elimina": sempre disponibile per l'admin, su qualsiasi
+         prenotazione e in qualsiasi stato. Chiede conferma, esegue la
+         DELETE reale su Supabase tramite BarberAPI.adminEliminaPrenotazione
+         (protetta lato server dalla policy RLS "admin_delete_prenotazioni"),
+         mostra un messaggio di successo solo se l'operazione è realmente
+         andata a buon fine e, in caso di errore, mostra il messaggio
+         effettivo restituito da Supabase. Ricarica subito la lista. */
+      card.querySelector("[data-action='elimina']")?.addEventListener("click", async () => {
+        if (!confirm("Sei sicuro di voler eliminare definitivamente questa prenotazione? L'operazione non può essere annullata.")) return;
+        try {
+          const risultato = await BarberAPI.adminEliminaPrenotazione(id);
+          console.log("[admin elimina] prenotazione eliminata con successo:", risultato);
+          toast("Prenotazione eliminata.");
+          loadAdminPrenotazioni();
+        } catch (err) {
+          console.error("[admin elimina] errore reale ricevuto da Supabase:", err);
+          toast(err?.message || "Errore durante l'eliminazione.", "error");
+        }
+      });
     });
     attachAdminIndirizzoEvents(container, prenotazioni);
   } catch (err) {
@@ -2904,10 +3319,11 @@ function renderPrenotazioneAdmin(p) {
       </div>
 
       ${p.note ? `<p class="booking-card__note">Note: ${escapeHTML(p.note)}</p>` : ""}
-      ${p.stato === "In attesa" ? `<div class="booking-card__actions">
-          <button type="button" class="btn btn--gold btn--small" data-action="conferma">Conferma</button>
-          <button type="button" class="btn btn--ghost btn--small btn--danger" data-action="rifiuta">Rifiuta</button>
-        </div>` : ""}
+      <div class="booking-card__actions">
+        ${p.stato === "In attesa" ? `<button type="button" class="btn btn--gold btn--small" data-action="conferma">Conferma</button>
+        <button type="button" class="btn btn--ghost btn--small btn--danger" data-action="rifiuta">Rifiuta</button>` : ""}
+        <button type="button" class="btn btn--ghost btn--small btn--danger" data-action="elimina">Elimina</button>
+      </div>
     </div>`;
 }
 
@@ -3105,10 +3521,15 @@ async function loadAdminNotifiche() {
    AGGIORNAMENTO UI IN BASE ALLO STATO DI AUTENTICAZIONE
    -------------------------------------------------------------------------- */
 function refreshAuthUI() {
-  const loggedIn = !!state.session;
+  /* Durante una sessione di recovery (link "password dimenticata" appena
+     seguito) la sessione temporanea creata da Supabase NON deve sbloccare
+     "Area cliente"/"Admin" nel menu: dal punto di vista del menu l'utente
+     resta considerato "non loggato" finché non completa il reset o esce
+     dal flusso di recovery. */
+  const loggedIn = !!state.session && !state.isRecoverySession;
   $("#nav-login").classList.toggle("hidden", loggedIn);
   $("#nav-area-cliente").classList.toggle("hidden", !loggedIn);
-  $("#nav-admin").classList.toggle("hidden", !state.isAdmin);
+  $("#nav-admin").classList.toggle("hidden", !state.isAdmin || state.isRecoverySession);
 
   if (state.profilo) {
     $$(".user-name-placeholder").forEach((el) => (el.textContent = state.profilo.nome));
@@ -3153,6 +3574,7 @@ async function init() {
   initRecensioneForm();
   initAutocompleteFields();
   initPrenotaForm();
+  initResetPasswordForm();
   initProfiloForm();
   initAdminTabs();
 
@@ -3167,15 +3589,34 @@ async function init() {
     toast("Impossibile caricare i servizi. Riprova più tardi o contatta l'assistenza.", "error");
   }
 
+  /* Rileva subito, dall'URL, se questa pagina è stata aperta seguendo un
+     link di recupero password (parametro "type=recovery" aggiunto da
+     Supabase al redirect). Questo controllo è indipendente dall'evento
+     PASSWORD_RECOVERY: garantisce che la vista di reset venga mostrata
+     anche se, per qualche motivo di timing, l'evento non viene ricevuto
+     dal listener registrato qui sotto. */
+  state.isRecoverySession = isRecoveryUrl();
+
   const session = await BarberAPI.getSession();
   await handleAuthChange(session);
 
-  BarberAPI.onAuthStateChange((_event, session) => {
+  BarberAPI.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY") state.isRecoverySession = true;
     handleAuthChange(session);
+    /* Se siamo già sulla vista di reset password, ne aggiorna lo stato
+       (waiting -> form) non appena la sessione di recovery diventa
+       disponibile, senza bisogno di un reload manuale della pagina. */
+    if (state.isRecoverySession && $(".view--active")?.id === "view-reset-password") {
+      initResetPasswordView();
+    }
   });
 
-  const initialView = location.hash.replace("#", "") || "home";
-  navigateTo(initialView, { updateHash: false });
+  if (state.isRecoverySession) {
+    navigateTo("reset-password", { updateHash: false });
+  } else {
+    const initialView = location.hash.replace("#", "") || "home";
+    navigateTo(initialView, { updateHash: false });
+  }
 }
 
 document.addEventListener("DOMContentLoaded", init);
