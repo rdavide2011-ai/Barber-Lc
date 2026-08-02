@@ -1684,6 +1684,23 @@
       return data;
     },
 
+    /* Verifica il token_hash generato dalla Vercel Function
+       (api/request-password-reset.js). A differenza del vecchio link
+       diretto di Supabase, qui la verifica avviene tramite una POST
+       esplicita (verifyOtp), innescata solo quando il sito viene
+       effettivamente caricato ed eseguito lato client — non da una
+       semplice GET automatica di uno scanner email (causa dell'errore
+       "otp_expired"). In caso di successo, Supabase Auth stabilisce la
+       sessione di recovery e onAuthStateChange riceve l'evento
+       "PASSWORD_RECOVERY", gestito in init(). */
+    async verifyRecoveryToken(tokenHash) {
+      const { error } = await supabaseClient.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "recovery",
+      });
+      if (error) throw error;
+    },
+
     async updatePassword(newPassword) {
       const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
       if (error) throw error;
@@ -3617,7 +3634,28 @@ async function init() {
     }
   });
 
-  if (state.isRecoverySession) {
+  /* Nuovo formato del link di recovery (vedi api/request-password-reset.js):
+     invece di affidarsi al redirect automatico di Supabase, il link email
+     porta qui un token_hash che verifichiamo esplicitamente con una POST
+     (verifyOtp) — sicura anche se il link è stato "pre-visitato" da uno
+     scanner email, a differenza del vecchio link diretto a Supabase. */
+  const recoveryParams = new URLSearchParams(location.search);
+  const recoveryTokenHash = recoveryParams.get("token_hash");
+  const recoveryType = recoveryParams.get("type");
+
+  if (recoveryTokenHash && recoveryType === "recovery") {
+    state.isRecoverySession = true;
+    navigateTo("reset-password", { updateHash: false });
+    try {
+      await BarberAPI.verifyRecoveryToken(recoveryTokenHash);
+      // Successo: l'onAuthStateChange registrato sopra riceve l'evento
+      // PASSWORD_RECOVERY e aggiorna automaticamente la vista, passando da
+      // "verifica in corso" al form della nuova password.
+    } catch (err) {
+      console.error("[recovery] token non valido o scaduto:", err);
+      initResetPasswordView(); // nessuna sessione stabilita -> mostra "link non valido"
+    }
+  } else if (state.isRecoverySession) {
     navigateTo("reset-password", { updateHash: false });
   } else {
     const initialView = location.hash.replace("#", "") || "home";
