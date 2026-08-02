@@ -1668,16 +1668,19 @@
       if (error) throw error;
     },
 
-    /* Richiede il recupero password passando dal controllo lato server
-       (Edge Function "reset-password-request"): solo se esiste realmente un
-       account con quell'email viene generata e inviata la mail di recupero.
-       Ritorna { exists: true|false }. Sostituisce il vecchio uso diretto di
-       resetPassword() dal form "Password dimenticata?". */
+    /* Richiede il recupero password passando da una Vercel Function
+       (/api/request-password-reset): il controllo "l'email esiste?" e
+       l'invio dell'email (ora tramite Gmail, non più tramite Supabase)
+       avvengono interamente lato server, senza mai esporre la service_role
+       key nel browser. Ritorna { exists: true|false }. */
     async requestPasswordReset(email) {
-      const { data, error } = await supabaseClient.functions.invoke("reset-password-request", {
-        body: { email },
+      const res = await fetch("/api/request-password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (error) throw error;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Errore durante la richiesta di recupero password.");
       return data;
     },
 
@@ -1972,12 +1975,15 @@
   };
 
   /* Le email transazionali (nuova prenotazione, conferma, rifiuto, modifica)
-     richiedono una Supabase Edge Function collegata a un provider come
-     Resend o SendGrid, che legge i trigger sulla tabella "prenotazioni"
-     (vedi schema.sql) e invia le email lato server. Il recupero password è
-     invece già gestito tramite la Edge Function "reset-password-request"
-     (verifica lato server + BarberAPI.requestPasswordReset) e da Supabase
-     Auth per l'aggiornamento vero e proprio (BarberAPI.updatePassword). */
+     richiedono una funzione lato server (es. Vercel Function) collegata a
+     un provider come Gmail, Resend o SendGrid, che legge i trigger sulla
+     tabella "prenotazioni" (vedi schema.sql) e invia le email lato server.
+     Il recupero password è invece già gestito dalla Vercel Function
+     /api/request-password-reset (verifica lato server + invio email
+     brandizzata via Gmail SMTP, vedi BarberAPI.requestPasswordReset) e da
+     Supabase Auth per l'aggiornamento vero e proprio della password
+     (BarberAPI.updatePassword), tramite il link di recovery generato dalla
+     stessa funzione. Supabase non invia più alcuna email in questo flusso. */
 
   /* --------------------------------------------------------------------------
      Espone il livello dati al resto dell'applicazione (script "classico" più
