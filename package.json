@@ -1,16 +1,9 @@
 {
   "name": "barber-lc",
   "version": "1.0.0",
-  "description": "",
-  "main": "script.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "private": true,
   "dependencies": {
-    "@supabase/supabase-js": "^2.111.0"
+    "@supabase/supabase-js": "^2.45.0",
+    "nodemailer": "^6.9.14"
   }
 }
