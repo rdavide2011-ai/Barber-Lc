@@ -73,8 +73,21 @@ module.exports = async function handler(req, res) {
     });
     if (linkError) throw linkError;
 
-    const actionLink = linkData?.properties?.action_link;
-    if (!actionLink) throw new Error("Link di recupero non generato.");
+    // NON usiamo linkData.properties.action_link: punterebbe direttamente
+    // all'endpoint /auth/v1/verify di Supabase, che consuma il token con una
+    // semplice richiesta GET. Molti scanner di sicurezza email (incluso
+    // quello di Gmail) "pre-visitano" automaticamente ogni link ricevuto per
+    // controllarne la sicurezza: questo consuma il token PRIMA che l'utente
+    // clicchi davvero, causando l'errore "otp_expired" anche su un link
+    // appena inviato.
+    //
+    // Costruiamo invece un link che punta al NOSTRO sito con il token_hash
+    // come parametro: il token viene verificato solo quando il sito esegue
+    // lato client supabase.auth.verifyOtp() (una POST esplicita), non da una
+    // GET automatica di uno scanner.
+    const hashedToken = linkData?.properties?.hashed_token;
+    if (!hashedToken) throw new Error("Token di recupero non generato.");
+    const actionLink = `${SITE_URL}?token_hash=${encodeURIComponent(hashedToken)}&type=recovery`;
 
     const nomeCliente = profilo.nome || "Cliente";
 
