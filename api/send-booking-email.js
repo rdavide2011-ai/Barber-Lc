@@ -6,24 +6,65 @@
 // rifiutata, modificata, annullata) tramite Gmail SMTP — stessa
 // configurazione e stessa grafica già usate per il recupero password
 // (vedi /api/request-password-reset.js). Nessuna di queste email passa da
-// Supabase.
+// Supabase per l'invio, ma il PROFILO del cliente (email, nome) può essere
+// recuperato qui, lato server, con la SUPABASE_SERVICE_ROLE_KEY.
 //
-// Body atteso:
+// Perché serve: le RLS sulla tabella "profili" permettono a ciascun utente
+// di leggere solo la propria riga. Quando è l'ADMIN a confermare/rifiutare
+// la prenotazione di un altro utente, il browser non può leggere il
+// profilo del cliente — e non deve, perché non vogliamo allentare le RLS.
+// Il fix corretto è: il browser passa solo "utente_id", e questa function
+// (che gira lato server con la service role key, quindi bypassa le RLS)
+// recupera email e nome direttamente da Supabase.
+//
+// Body atteso — DUE modalità, entrambe supportate:
+//
+// 1) Il chiamante conosce già email/nome (es. l'utente agisce sulla
+//    propria prenotazione: creazione, modifica, annullamento):
 // {
 //   tipo: "confermata" | "rifiutata" | "modificata" | "annullata",
 //   email: "cliente@example.com",
 //   nomeCliente: "Mario",
 //   prenotazione: { data, orario, servizio, comune, via }  // opzionale
 // }
+//
+// 2) L'admin conferma/rifiuta la prenotazione di un altro utente e passa
+//    solo l'id, senza aver mai letto "profili" dal browser:
+// {
+//   tipo: "confermata" | "rifiutata",
+//   utente_id: "uuid-del-cliente",
+//   prenotazione: { data, orario, servizio, comune, via }  // opzionale
+// }
+// In questo caso email e nome vengono recuperati qui da "profili" con la
+// service role key.
 // ============================================================================
 
 const nodemailer = require("nodemailer");
+const { createClient } = require("@supabase/supabase-js");
 
 const SITE_URL = process.env.SITE_URL || "https://barber-lc.vercel.app";
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 const TIPI_VALIDI = ["confermata", "rifiutata", "modificata", "annullata"];
+
+// Client Supabase con la service role key: bypassa le RLS, va usato SOLO
+// lato server (mai esposto al browser) e SOLO per questo lookup puntuale.
+let supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY mancanti nelle env vars.");
+    }
+    supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return supabaseAdmin;
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", SITE_URL);
@@ -36,16 +77,46 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { tipo, email, nomeCliente, prenotazione } = req.body || {};
+    const { tipo, email, nomeCliente, utente_id, prenotazione } = req.body || {};
 
     if (!TIPI_VALIDI.includes(tipo)) {
       return res.status(400).json({ error: "Tipo di notifica non valido." });
     }
-    if (!email || typeof email !== "string" || !email.includes("@")) {
+    if (!email && !utente_id) {
+      return res.status(400).json({ error: "Serve 'email' oppure 'utente_id'." });
+    }
+
+    // Email e nome finali da usare per l'invio: partono da quanto passato
+    // dal client, e vengono completati/recuperati da Supabase se manca
+    // l'email diretta ma è presente utente_id.
+    let emailFinale = email;
+    let nomeFinale = nomeCliente;
+
+    if (!emailFinale) {
+      if (typeof utente_id !== "string" || !utente_id.trim()) {
+        return res.status(400).json({ error: "utente_id non valido." });
+      }
+
+      const { data: profilo, error: erroreProfilo } = await getSupabaseAdmin()
+        .from("profili")
+        .select("email, nome")
+        .eq("id", utente_id)
+        .single();
+
+      if (erroreProfilo || !profilo) {
+        console.error("[send-booking-email] profilo non trovato per utente_id:", utente_id, erroreProfilo);
+        return res.status(404).json({ error: "Profilo cliente non trovato." });
+      }
+
+      emailFinale = profilo.email;
+      nomeFinale = profilo.nome || nomeFinale;
+    }
+
+    if (!emailFinale || typeof emailFinale !== "string" || !emailFinale.includes("@")) {
       return res.status(400).json({ error: "Email non valida." });
     }
 
-    const nome = (nomeCliente && String(nomeCliente).trim()) || "Cliente";
+    const nome = (nomeFinale && String(nomeFinale).trim()) || "Cliente";
     const { subject, html } = buildEmail(tipo, { nome, prenotazione: prenotazione || {} });
 
     const transporter = nodemailer.createTransport({
@@ -55,7 +126,7 @@ module.exports = async function handler(req, res) {
 
     await transporter.sendMail({
       from: `"Barber LC" <${GMAIL_USER}>`,
-      to: email.trim().toLowerCase(),
+      to: emailFinale.trim().toLowerCase(),
       subject,
       html,
     });
