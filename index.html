@@ -2100,6 +2100,13 @@ function setLoading(button, loading) {
    loggato in console: non deve mai far apparire un errore su
    un'operazione di prenotazione che invece è riuscita. */
 async function inviaEmailPrenotazione(tipo, { email, nomeCliente, prenotazione } = {}) {
+  console.log("[FETCH EMAIL]", {
+    tipo,
+    email,
+    nomeCliente,
+    prenotazione
+  });
+
   if (!email) {
     console.error(`[email] notifica "${tipo}" NON inviata: email cliente mancante. La fetch verso /api/send-booking-email non viene effettuata.`);
     return;
@@ -3514,6 +3521,12 @@ async function aggiornaStatoAdmin(prenotazione, stato) {
         console.error("[email] impossibile recuperare il profilo del cliente per l'invio della notifica:", err);
       }
     }
+
+    console.log("[EMAIL ADMIN]", {
+      emailCliente,
+      nomeCliente,
+      prenotazione
+    });
 
     inviaEmailPrenotazione(stato === "Confermata" ? "confermata" : "rifiutata", {
       email: emailCliente,
