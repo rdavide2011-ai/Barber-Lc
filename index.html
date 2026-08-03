@@ -2099,23 +2099,33 @@ function setLoading(button, loading) {
    andata a buon fine. Un eventuale fallimento dell'invio email viene solo
    loggato in console: non deve mai far apparire un errore su
    un'operazione di prenotazione che invece è riuscita. */
-async function inviaEmailPrenotazione(tipo, { email, nomeCliente, prenotazione } = {}) {
+async function inviaEmailPrenotazione(tipo, { email, nomeCliente, utente_id, prenotazione } = {}) {
   console.log("[FETCH EMAIL]", {
     tipo,
     email,
     nomeCliente,
+    utente_id,
     prenotazione
   });
 
-  if (!email) {
-    console.error(`[email] notifica "${tipo}" NON inviata: email cliente mancante. La fetch verso /api/send-booking-email non viene effettuata.`);
+  /* Due modalita' supportate:
+     - email/nomeCliente gia' noti lato client (l'utente sta agendo sulla
+       propria prenotazione: creazione, modifica, annullamento) -> si
+       passano direttamente;
+     - utente_id (l'admin conferma/rifiuta la prenotazione di un altro
+       utente) -> il browser NON legge piu' la tabella "profili" (le RLS
+       lo impedirebbero comunque per un utente diverso da se stesso).
+       Sara' la Vercel Function, con la service role key, a recuperare
+       email e nome dal server. */
+  if (!email && !utente_id) {
+    console.error(`[email] notifica "${tipo}" NON inviata: ne' email ne' utente_id disponibili. La fetch verso /api/send-booking-email non viene effettuata.`);
     return;
   }
   try {
     const res = await fetch("/api/send-booking-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tipo, email, nomeCliente, prenotazione }),
+      body: JSON.stringify({ tipo, email, nomeCliente, utente_id, prenotazione }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -3503,34 +3513,19 @@ async function aggiornaStatoAdmin(prenotazione, stato) {
     await BarberAPI.adminAggiornaStatoPrenotazione(prenotazione.id, stato);
     toast(stato === "Confermata" ? "Prenotazione confermata." : "Prenotazione rifiutata.");
 
-    /* Se il join client-side con "profili" (fatto in adminGetTuttePrenotazioni)
-       non ha trovato il profilo del cliente, prenotazione.profili è null e
-       inviaEmailPrenotazione() scarterebbe la notifica in silenzio (email
-       mancante), senza che nessuna richiesta arrivi a /api/send-booking-email.
-       Come fallback recuperiamo l'email direttamente da utente_id, che è
-       sempre presente sulla riga della prenotazione indipendentemente dal
-       join. */
-    let emailCliente = prenotazione.profili?.email;
-    let nomeCliente = prenotazione.profili?.nome;
-    if (!emailCliente && prenotazione.utente_id) {
-      try {
-        const profiloCliente = await BarberAPI.getProfilo(prenotazione.utente_id);
-        emailCliente = profiloCliente?.email;
-        nomeCliente = profiloCliente?.nome;
-      } catch (err) {
-        console.error("[email] impossibile recuperare il profilo del cliente per l'invio della notifica:", err);
-      }
-    }
-
+    /* L'admin non puo' (e non deve) leggere il profilo di un altro utente
+       dal browser: le RLS sulla tabella "profili" permettono a ciascun
+       utente di leggere solo la propria riga. Si passa quindi solo
+       utente_id alla Vercel Function: sara' lei, lato server, a
+       recuperare email e nome del cliente usando la
+       SUPABASE_SERVICE_ROLE_KEY. */
     console.log("[EMAIL ADMIN]", {
-      emailCliente,
-      nomeCliente,
+      utente_id: prenotazione.utente_id,
       prenotazione
     });
 
     inviaEmailPrenotazione(stato === "Confermata" ? "confermata" : "rifiutata", {
-      email: emailCliente,
-      nomeCliente,
+      utente_id: prenotazione.utente_id,
       prenotazione: {
         data: prenotazione.data,
         orario: prenotazione.orario,
