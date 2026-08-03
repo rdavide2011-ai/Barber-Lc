@@ -19,19 +19,22 @@
 //
 // Body atteso — DUE modalità, entrambe supportate:
 //
+// Tipi supportati: "creata" | "confermata" | "rifiutata" | "modificata" | "annullata"
+//
 // 1) Il chiamante conosce già email/nome (es. l'utente agisce sulla
 //    propria prenotazione: creazione, modifica, annullamento):
 // {
-//   tipo: "confermata" | "rifiutata" | "modificata" | "annullata",
+//   tipo: "creata" | "confermata" | "rifiutata" | "modificata" | "annullata",
 //   email: "cliente@example.com",
 //   nomeCliente: "Mario",
 //   prenotazione: { data, orario, servizio, comune, via }  // opzionale
 // }
 //
-// 2) L'admin conferma/rifiuta la prenotazione di un altro utente e passa
-//    solo l'id, senza aver mai letto "profili" dal browser:
+// 2) L'admin agisce sulla prenotazione di un altro utente (conferma,
+//    rifiuta, modifica l'indirizzo, elimina/annulla) e passa solo l'id,
+//    senza aver mai letto "profili" dal browser:
 // {
-//   tipo: "confermata" | "rifiutata",
+//   tipo: "confermata" | "rifiutata" | "modificata" | "annullata",
 //   utente_id: "uuid-del-cliente",
 //   prenotazione: { data, orario, servizio, comune, via }  // opzionale
 // }
@@ -49,7 +52,7 @@ const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const TIPI_VALIDI = ["confermata", "rifiutata", "modificata", "annullata"];
+const TIPI_VALIDI = ["creata", "confermata", "rifiutata", "modificata", "annullata"];
 
 // Client Supabase con la service role key: bypassa le RLS, va usato SOLO
 // lato server (mai esposto al browser) e SOLO per questo lookup puntuale.
@@ -143,6 +146,18 @@ module.exports = async function handler(req, res) {
    -------------------------------------------------------------------------- */
 function buildEmail(tipo, { nome, prenotazione }) {
   switch (tipo) {
+    case "creata":
+      return {
+        subject: "📩 Richiesta di prenotazione ricevuta - Barber LC",
+        html: wrapEmail({
+          title: "Richiesta ricevuta",
+          accentColor: "#8fb8e0",
+          intro: `Ciao ${escapeHtml(nome)}, abbiamo ricevuto la tua richiesta di prenotazione. Ti scriveremo di nuovo non appena il nostro staff l'avrà confermata.`,
+          details: bookingDetailsTable(prenotazione),
+          ctaLabel: "Vai all'Area Clienti",
+          ctaLink: `${SITE_URL}#area-cliente`,
+        }),
+      };
     case "confermata":
       return {
         subject: "✅ Prenotazione confermata - Barber LC",
