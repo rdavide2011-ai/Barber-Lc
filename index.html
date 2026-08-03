@@ -2092,6 +2092,33 @@ function setLoading(button, loading) {
   button.classList.toggle("is-loading", loading);
 }
 
+/* Invia la notifica email relativa a una prenotazione (confermata,
+   rifiutata, modificata, annullata) tramite la Vercel Function
+   /api/send-booking-email (Gmail SMTP, stessa configurazione del recupero
+   password). Va chiamata SOLO dopo che l'operazione su Supabase è già
+   andata a buon fine. Un eventuale fallimento dell'invio email viene solo
+   loggato in console: non deve mai far apparire un errore su
+   un'operazione di prenotazione che invece è riuscita. */
+async function inviaEmailPrenotazione(tipo, { email, nomeCliente, prenotazione } = {}) {
+  if (!email) {
+    console.warn(`[email] notifica "${tipo}" non inviata: email cliente mancante.`);
+    return;
+  }
+  try {
+    const res = await fetch("/api/send-booking-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo, email, nomeCliente, prenotazione }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.error(`[email] invio notifica "${tipo}" non riuscito:`, err);
+  }
+}
+
 function escapeHTML(str = "") {
   const div = document.createElement("div");
   div.textContent = str;
@@ -2779,6 +2806,14 @@ function initPrenotaForm() {
           data: state.selectedDate, orario: state.selectedTime, indirizzo, note: note || null,
         });
         toast("Prenotazione modificata. In attesa di nuova conferma.");
+        inviaEmailPrenotazione("modificata", {
+          email: state.session.user.email,
+          nomeCliente: state.profilo?.nome,
+          prenotazione: {
+            data: state.selectedDate, orario: state.selectedTime,
+            servizio: servizio.nome, comune, via: indirizzo,
+          },
+        });
         state.editingPrenotazioneId = null;
         /* Una modifica riguarda una prenotazione già esistente: l'utente
            la ritrova subito nell'Area Cliente, non serve la schermata di
@@ -3139,6 +3174,10 @@ function attachPrenotazioneClienteEvents(list, prenotazioni) {
         const risultato = await BarberAPI.annullaPrenotazione(id);
         console.log("[annulla] prenotazione annullata con successo:", risultato);
         toast("Prenotazione annullata.");
+        inviaEmailPrenotazione("annullata", {
+          email: state.session.user.email,
+          nomeCliente: state.profilo?.nome,
+        });
         await loadAreaCliente(); // ricarica subito la lista, nessun reload della pagina
       } catch (err) {
         console.error("[annulla] errore reale ricevuto da Supabase:", err);
@@ -3266,8 +3305,9 @@ async function loadAdminPrenotazioni() {
     container.innerHTML = prenotazioni.map(renderPrenotazioneAdmin).join("");
     $$(".admin-booking-card", container).forEach((card) => {
       const id = card.dataset.id;
-      card.querySelector("[data-action='conferma']")?.addEventListener("click", () => aggiornaStatoAdmin(id, "Confermata"));
-      card.querySelector("[data-action='rifiuta']")?.addEventListener("click", () => aggiornaStatoAdmin(id, "Rifiutata"));
+      const p = prenotazioni.find((x) => String(x.id) === id);
+      card.querySelector("[data-action='conferma']")?.addEventListener("click", () => aggiornaStatoAdmin(p, "Confermata"));
+      card.querySelector("[data-action='rifiuta']")?.addEventListener("click", () => aggiornaStatoAdmin(p, "Rifiutata"));
       /* Pulsante "Elimina": sempre disponibile per l'admin, su qualsiasi
          prenotazione e in qualsiasi stato. Chiede conferma, esegue la
          DELETE reale su Supabase tramite BarberAPI.adminEliminaPrenotazione
@@ -3451,10 +3491,21 @@ function attachAdminIndirizzoEvents(container, prenotazioni) {
   });
 }
 
-async function aggiornaStatoAdmin(id, stato) {
+async function aggiornaStatoAdmin(prenotazione, stato) {
   try {
-    await BarberAPI.adminAggiornaStatoPrenotazione(id, stato);
+    await BarberAPI.adminAggiornaStatoPrenotazione(prenotazione.id, stato);
     toast(stato === "Confermata" ? "Prenotazione confermata." : "Prenotazione rifiutata.");
+    inviaEmailPrenotazione(stato === "Confermata" ? "confermata" : "rifiutata", {
+      email: prenotazione.profili?.email,
+      nomeCliente: prenotazione.profili?.nome,
+      prenotazione: {
+        data: prenotazione.data,
+        orario: prenotazione.orario,
+        servizio: prenotazione.servizi?.nome,
+        comune: prenotazione.comune,
+        via: prenotazione.indirizzo,
+      },
+    });
     loadAdminPrenotazioni();
   } catch (err) {
     toast("Errore nell'aggiornamento.", "error");
