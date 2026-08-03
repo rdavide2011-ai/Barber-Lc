@@ -2847,6 +2847,14 @@ function initPrenotaForm() {
           data: state.selectedDate, orario: state.selectedTime, indirizzo, note,
         });
         const nomeCliente = state.profilo?.nome || "Cliente";
+        inviaEmailPrenotazione("creata", {
+          email: state.session.user.email,
+          nomeCliente: state.profilo?.nome,
+          prenotazione: {
+            data: state.selectedDate, orario: state.selectedTime,
+            servizio: servizio.nome, comune, via: indirizzo,
+          },
+        });
         resetPrenotaForm();
         showPrenotaSuccesso(nomeCliente);
       }
@@ -3194,6 +3202,10 @@ function attachPrenotazioneClienteEvents(list, prenotazioni) {
         inviaEmailPrenotazione("annullata", {
           email: state.session.user.email,
           nomeCliente: state.profilo?.nome,
+          prenotazione: {
+            data: prenotazione?.data, orario: prenotazione?.orario,
+            servizio: prenotazione?.servizi?.nome, comune: prenotazione?.comune, via: prenotazione?.indirizzo,
+          },
         });
         await loadAreaCliente(); // ricarica subito la lista, nessun reload della pagina
       } catch (err) {
@@ -3338,6 +3350,18 @@ async function loadAdminPrenotazioni() {
           const risultato = await BarberAPI.adminEliminaPrenotazione(id);
           console.log("[admin elimina] prenotazione eliminata con successo:", risultato);
           toast("Prenotazione eliminata.");
+          /* Non esiste, lato admin, un'azione "Annulla" distinta
+             dall'eliminazione definitiva: questa e' l'unica azione admin
+             che cancella una prenotazione, quindi e' qui che notifichiamo
+             il cliente con l'email di annullamento. Anche qui solo
+             utente_id: il profilo si recupera lato server. */
+          inviaEmailPrenotazione("annullata", {
+            utente_id: p.utente_id,
+            prenotazione: {
+              data: p.data, orario: p.orario,
+              servizio: p.servizi?.nome, comune: p.comune, via: p.indirizzo,
+            },
+          });
           loadAdminPrenotazioni();
         } catch (err) {
           console.error("[admin elimina] errore reale ricevuto da Supabase:", err);
@@ -3497,6 +3521,17 @@ function attachAdminIndirizzoEvents(container, prenotazioni) {
       try {
         await BarberAPI.adminAggiornaIndirizzo(id, { comune, indirizzo });
         toast("Indirizzo aggiornato.");
+        /* L'admin ha modificato la prenotazione di un altro utente: come
+           per conferma/rifiuto, il browser non legge "profili" per questo
+           cliente. Si passa solo utente_id: la Vercel Function recupera
+           email e nome con la service role key. */
+        inviaEmailPrenotazione("modificata", {
+          utente_id: prenotazione.utente_id,
+          prenotazione: {
+            data: prenotazione.data, orario: prenotazione.orario,
+            servizio: prenotazione.servizi?.nome, comune, via: indirizzo,
+          },
+        });
         loadAdminPrenotazioni();
       } catch (err) {
         toast("Errore nel salvataggio dell'indirizzo.", "error");
